@@ -1,0 +1,67 @@
+const express = require("express");
+const path = require("path");
+const { open } = require("sqlite");
+const sqlite3 = require("sqlite3");
+
+const app = express();
+app.use(express.json());
+
+const dbpath = path.join(__dirname, "DATABASE.db");
+
+let db = null;
+
+const validate = async () => {
+  try {
+    db = await open({
+      filename: dbpath,
+      driver: sqlite3.Database,
+    });
+    app.listen(3000, () => {
+      console.log("server success");
+    });
+  } catch (error) {
+    console.log(`${error.message}`);
+  }
+};
+validate();
+
+app.get("roxiler.com/product_transaction.json/:month/", async (request, response) => {
+    const {month} = request.params
+  const query = `select sum(price) from DATABASE where CAST(strftime('%Y', dateOfSale) AS INTEGER) = ${month}`;
+  const result = await db.all(query);
+  response.send(result);
+});
+
+app.get("https://s3.amazonaws.com/roxiler.com/product_transaction.json/price?min=:min&max=:max",async (request,response) => {
+    const {min,max} from request.params
+    const query = `select * from DATABASE where price between ${min} and ${max}`
+    const result = await db.all(query)
+    response.send(result)
+})
+app.get("https://s3.amazonaws.com/roxiler.com/product_transaction.json/month/:month/category/:category",async (request,response) => {
+    const {category,month} = request.params
+    const query = `select count() as CATEGORY ITEMS from DATABASE where CAST(strftime('%Y', dateOfSale) AS INTEGER) = ${month} and category = {category}`
+    const result = await db.all(query)
+    response.send(result)
+})
+
+app.get("",async(request,response) => {
+    const {month,category,min,max} = request.params
+    const query = `select * from DATABASE where CAST(strftime('%Y', dateOfSale) AS INTEGER) = ${month} and category = {category} and price between ${min} and ${max}`
+    const result = await db.all(query)
+    response.send(result)
+})
+
+module.exports = app;
+
+
+
+GET https://s3.amazonaws.com/roxiler.com/product_transaction.json?month=8
+###
+GET https://s3.amazonaws.com/roxiler.com/product_transaction.json/price?min=200&max=1000
+###
+
+GET https://s3.amazonaws.com/roxiler.com/product_transaction.json/?category="men's clothing"&month=5
+###
+
+GET https://s3.amazonaws.com/roxiler.com/product_transaction.json/category/?category="men's clothing"/month/&month=5&min=200&max=5000
